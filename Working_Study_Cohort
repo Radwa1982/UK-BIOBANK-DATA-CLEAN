@@ -8,3 +8,22 @@
 # 5. Recruitment centre 
 # 6. DOB
 # 7. Twsend deprivation Index
+#########################################################################
+# Working_Study_Cohort_2
+Working_Study_Cohort_2 <- Working_Study_Cohort_1 %>%
+  left_join(
+    final_PCOS %>%
+      select(
+        `Participant ID`,
+        PCOs_self_reported,
+        PCOS_Age_at_diagnosis_selfreported,
+        PCOS_Date_at_diagnosis_selfreported,
+        All_PCOS
+      ),
+    by = "Participant ID"
+  )
+# 8. PCOs_self_reported
+# 9. PCOS_Age_at_diagnosis_selfreported
+# 10. PCOS_Date_at_diagnosis_selfreported
+# 11. All_PCOS
+#####################################################################################
