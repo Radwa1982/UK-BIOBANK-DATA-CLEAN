@@ -141,3 +141,117 @@ PCOs_female_Hospital_diagnosis_2 <- PCOs_female_Hospital_diagnosis_1 %>%
 
 #### No the PCOs_female_Hospital_diagnosis_summary.csv is saved on the DNxes and has the ICD_9/10, with dates 
 ###### Add these columns to the working cohort Working_Study_Cohort_1 in my folder Working_Study_Cohort
+
+###########################################################################################################################
+##In the self reported folder in PCOs_cleaning 
+######## Uploded Large_PCOs ( contans the non cancer reported illnes  for the full cohort)
+# subset to the female group 
+PCOs_female_Self_reported<- PCOs_combined %>%
+  filter(Sex.x == "Female")
+# This is how it is written as txt"polycystic ovaries/polycystic ovarian syndrome"
+# Apply this code to get those self reported 
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# 1) All self-reported illness text columns
+illness_cols <- grep("^Non-cancer illness code, self-reported", 
+                     names(PCOs_female_Self_reported), value = TRUE)
+
+
+pcos_list <- lapply(illness_cols, function(ic) {
+  # Matching AGE and YEAR column names by replacing the prefix
+  age_col <- sub(
+    "Non-cancer illness code, self-reported",
+    "Interpolated Age of participant when non-cancer illness first diagnosed",
+    ic,
+    fixed = TRUE
+  )
+  
+  year_col <- sub(
+    "Non-cancer illness code, self-reported",
+    "Interpolated Year when non-cancer illness first diagnosed",
+    ic,
+    fixed = TRUE
+  )
+  
+  # Illness text in this column
+  txt <- PCOs_female_Self_reported[[ic]]
+  
+  # TRUE where the phrase matches exactly (case-insensitive)
+  is_pcos <- grepl("polycystic ovaries/polycystic ovarian syndrome",
+                   txt,
+                   ignore.case = TRUE)
+  
+  # If no PCOS entries in this column, skip it
+  if (!any(is_pcos, na.rm = TRUE)) return(NULL)
+  
+  # Build a small data.frame only for those TRUE rows
+  data.frame(
+    Participant_ID = PCOs_female_Self_reported[["Participant ID"]][is_pcos],
+    illness_col    = ic,
+    illness_text   = txt[is_pcos],
+    age_at_dx      = if (age_col %in% names(PCOs_female_Self_reported)) PCOs_female_Self_reported[[age_col]][is_pcos] else NA,
+    year_at_dx     = if (year_col %in% names(PCOs_female_Self_reported)) PCOs_female_Self_reported[[year_col]][is_pcos] else NA,
+    stringsAsFactors = FALSE
+  )
+})
+
+# Combine all non-NULL chunks into one table
+pcos_self_report <- do.call(rbind, pcos_list)
+#############PCOS_Self_Reported - dose not contain the floored age or the date (has the original data of deicemil)
+# Now floor the age , and getthe date and add acolumn of true 
+pcos_self_report <- pcos_self_report %>%
+  mutate(
+    PCOS_Age_at_diagnosis_selfreported =
+      floor(as.numeric(age_at_dx))
+  )
+
+pcos_self_report <- pcos_self_report %>%
+  mutate(
+    # extract whole year
+    year_whole = floor(as.numeric(year_at_dx)),
+    
+    # extract fractional part
+    year_fraction = as.numeric(year_at_dx) - year_whole,
+    
+    # convert fraction → month
+    month = round(year_fraction * 12),
+    
+    # fix month 0 and 12
+    month = ifelse(month == 0, 1, month),
+    month = ifelse(month == 12, 12, month),
+    
+    # create approximate date
+    PCOS_Date_at_diagnosis_selfreported =
+      as.Date(paste(year_whole, month, 15, sep = "-"))
+  )
+
+pcos_self_report <- pcos_self_report %>%
+  mutate(PCOs_self_reported = TRUE)
+############## PCOS_self_report_1 in my PCOs cleaning  have the age and date 
+# Now create all that are PCOS self reported and/ or ICD-9/ICD-10
+final_PCOS <- PCOs_female_Hospital_diagnosis_summary %>% 
+  select(`Participant ID`,
+         PCOS_ICD9_ICD10_Diagnosis,
+         PCOS_ICD9_ICD10_Date)
+
+final_PCOS <- final_PCOS %>%
+  left_join(
+    pcos_self_report %>%
+      rename(`Participant ID` = Participant_ID) %>%   # rename for join
+      select(`Participant ID`,
+             PCOs_self_reported,
+             PCOS_Age_at_diagnosis_selfreported,
+             PCOS_Date_at_diagnosis_selfreported),
+    by = "Participant ID"
+  )
+final_PCOS <- final_PCOS %>%
+  mutate(
+    All_PCOS = if_else(
+      !is.na(PCOS_ICD9_ICD10_Diagnosis) | PCOs_self_reported == TRUE,
+      TRUE,
+      FALSE
+    )
+  )
+####### The final_PCOS is uploaded to my PCOs_cleaning 
