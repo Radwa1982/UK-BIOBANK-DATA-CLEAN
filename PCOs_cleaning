@@ -139,4 +139,5 @@ PCOs_female_Hospital_diagnosis_2 <- PCOs_female_Hospital_diagnosis_1 %>%
     )
   )
 
-
+#### No the PCOs_female_Hospital_diagnosis_summary.csv is saved on the DNxes and has the ICD_9/10, with dates 
+###### Add these columns to the working cohort Working_Study_Cohort_1 in my folder Working_Study_Cohort
