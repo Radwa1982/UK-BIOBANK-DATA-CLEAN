@@ -1,0 +1,142 @@
+# Cleaning UK Bio-Bank Variables 
+###PCOS
+# From Hospital Diagnosis Summary The Categry is 2002 / feild choosen are 
+# 41270	Diagnoses - ICD10
+# 41280	Date of first in-patient diagnosis - ICD10
+# 41271	Diagnoses - ICD9
+# 41281	Date of first in-patient diagnosis - ICD9
+# The ICD-10 code for PCOs is E28.2 / The ICD-9 code for PCOs is 2564 ( no dots here as per the biobank format)
+# First using Table Explorer Function in Posit Workbench (RStudio) ( programmatically) - is table is creted ( I kept the participant id and the sex column so can subset 
+####### In my Final Cohort in the folder PCOS-cleaning This Table is called large_PCOS
+# The file is Uploded into my environment using the general codes and then only females selected 
+
+PCOs_female_Hospital_diagnosis<- large_PCOS %>%
+  filter(Sex == "Female")
+# Then to solve the proplem that ICD-10 / ICD-9 Diagnosis is in one cell seperated by | while the matching dates are arryes in the order they are in the cell this code was applied
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+df_dates_long <- PCOs_female_Hospital_diagnosis %>% 
+  select(
+    `Participant ID`,
+    matches("^Date of first in-patient diagnosis - ICD10 \\| Array ")
+  ) %>%
+  pivot_longer(
+    cols = matches("^Date of first in-patient diagnosis - ICD10 \\| Array "),
+    names_to   = "array_index",
+    values_to  = "dx_date",
+    values_drop_na = FALSE,
+    names_pattern = "^Date of first in-patient diagnosis - ICD10 \\| Array (\\d+)$"
+  ) %>%
+  mutate(array_index = as.integer(array_index))
+
+df_dx_long <- PCOs_female_Hospital_diagnosis %>%
+  select(`Participant ID`, `Diagnoses - ICD10`) %>%
+  separate_rows(`Diagnoses - ICD10`, sep = "\\|") %>%
+  mutate(
+    `Diagnoses - ICD10` = str_trim(`Diagnoses - ICD10`),
+    icd10_code = str_extract(`Diagnoses - ICD10`, "^[A-Z][0-9][0-9A-Z]\\.?[0-9A-Z]*")
+  ) %>%
+  group_by(`Participant ID`) %>%
+  mutate(array_index = row_number() - 1L) %>%  # 1st code → array 0, 2nd → array 1, etc.
+  ungroup()
+
+dx_with_dates <- df_dx_long %>%
+  left_join(df_dates_long, by = c("Participant ID", "array_index"))
+
+###### The outcome of that is long table with the participant ID repeated against eached code in the daignosis and matched with date and array 
+###### This is saved in the Final_Cohort/PCOs_cleaning as ICD-10_All_Females_Diagnosis 
+# The same is repeated for ICD-9 
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+df_dates_long_ICD9 <- PCOs_female_Hospital_diagnosis %>% 
+  select(
+    `Participant ID`,
+    matches("^Date of first in-patient diagnosis - ICD9 \\| Array ")
+  ) %>%
+  pivot_longer(
+    cols = matches("^Date of first in-patient diagnosis - ICD9 \\| Array "),
+    names_to   = "array_index",
+    values_to  = "dx_date_ICD9",
+    values_drop_na = FALSE,
+    names_pattern = "^Date of first in-patient diagnosis - ICD9 \\| Array (\\d+)$"
+  ) %>%
+  mutate(array_index = as.integer(array_index))
+
+df_dx_long_ICD9 <- PCOs_female_Hospital_diagnosis %>%
+  select(`Participant ID`, `Diagnoses - ICD9`) %>%
+  separate_rows(`Diagnoses - ICD9`, sep = "\\|") %>%
+  mutate(
+    `Diagnoses - ICD9` = str_trim(`Diagnoses - ICD9`),
+    # extract the code at the start (e.g. 2189, 9985, E8786)
+    icd9_code = str_extract(`Diagnoses - ICD9`, "^[A-Z0-9]+")
+  ) %>%
+  group_by(`Participant ID`) %>%
+  mutate(array_index = row_number() - 1L) %>%   # 1st code = Array 0, 2nd = Array 1, ...
+  ungroup()
+dx_with_dates_ICD9 <- df_dx_long_ICD9 %>%
+  left_join(df_dates_long_ICD9, by = c("Participant ID", "array_index"))
+###### This is saved in the Final_Cohort/PCOs_cleaning as ICD-9_All_Females_Diagnosis 
+# Now two columns were created and added to the PCOs_female_Hospital_diagnosis , ICD-10 , ICD-10-dates , ICD-9, ICD-9 dates, ICD-9/10 , ICD9/10-dates
+PCOS_ICD10_dates <- dx_with_dates %>%
+  filter(icd10_code == "E28.2") %>%
+  select(`Participant ID`, icd10_code, dx_date)
+
+# 2) Collapse to one row per participant: first diagnosis date
+PCOS_ICD10_summary <- PCOS_ICD10_dates %>%
+  group_by(`Participant ID`) %>%
+  summarise(
+    `ICD_10 all` = "E28.2",                      # they are all E28.2 by definition
+    `ICD_10_date_of diagnosis` = min(dx_date, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 3) Join back into your main PCOS hospital dataframe
+PCOs_female_Hospital_diagnosis <- PCOs_female_Hospital_diagnosis %>%
+  left_join(PCOS_ICD10_summary, by = "Participant ID")
+
+PCOS_ICD9_dates <- dx_with_dates_ICD9 %>%
+  filter(icd9_code == "2564") %>%
+  select(`Participant ID`, icd9_code, dx_date_ICD9)
+
+ PCOS_ICD9_summary <- PCOS_ICD9_dates %>%
+  group_by(`Participant ID`) %>%
+  summarise(
+    `ICD_9_all` = "2564",   # ICD-9 PCOS code
+    `ICD_9_date_of_diagnosis` = min(dx_date_ICD9, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+
+ PCOs_female_Hospital_diagnosis <- PCOs_female_Hospital_diagnosis %>%
+  left_join(PCOS_ICD9_summary, by = "Participant ID")
+
+## Now merge the columns of ICD-9 / ICD-10 to produce the data
+colnames(PCOs_female_Hospital_diagnosis)
+PCOs_female_Hospital_diagnosis_1 <- PCOs_female_Hospital_diagnosis %>%
+  mutate(
+    PCOS_ICD9_ICD10_Diagnosis = case_when(
+      !is.na(ICD_9_all) & !is.na(`ICD_10 all`) ~ paste(ICD_9_all, `ICD_10 all`, sep = ";"),
+      !is.na(ICD_9_all) ~ ICD_9_all,
+      !is.na(`ICD_10 all`) ~ `ICD_10 all`,
+      TRUE ~ NA_character_
+    )
+  )
+PCOs_female_Hospital_diagnosis_2 <- PCOs_female_Hospital_diagnosis_1 %>%
+  mutate(
+    PCOS_ICD9_ICD10_Date = case_when(
+      !is.na(ICD_9_date_of_diagnosis) & !is.na(`ICD_10_date_of diagnosis`) ~ 
+        paste(as.character(ICD_9_date_of_diagnosis),
+              as.character(`ICD_10_date_of diagnosis`),
+              sep = ";"),
+      !is.na(ICD_9_date_of_diagnosis) ~ as.character(ICD_9_date_of_diagnosis),
+      !is.na(`ICD_10_date_of diagnosis`) ~ as.character(`ICD_10_date_of diagnosis`),
+      TRUE ~ NA_character_
+    )
+  )
+
+
