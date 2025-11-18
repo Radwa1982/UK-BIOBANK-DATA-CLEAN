@@ -118,3 +118,24 @@ Endo_OPCS_3_long <- opcs3_codes_long %>%
     OPCS3_date
   )
 ###### uploaded the long OPCS3 table to my DNAnexus called it 
+
+## did not use the surgical codes eventually but these are all the hospital based codes 
+
+##############################################################################
+#Now getting the ICD_9 Endo diagnosis using the big code 617 
+system("ls -lah /mnt/project/Final_Cohort/PCOS-cleaning")
+ICD_9_All_Females_Diagnosis<- fread("/mnt/project/Final_Cohort/PCOS-cleaning/ICD-9_All_Females_Diagnosis.csv")
+colnames(ICD_9_All_Females_Diagnosis)
+
+# Extract ICD-9 endometriosis diagnoses (codes starting with 617)
+End_ICD_9_diagnosis <- ICD_9_All_Females_Diagnosis %>%
+  dplyr::filter(grepl("^617", icd9_code))
+######uploded in endo under Endo_ICD_9_diagnosis 
+bash : dx upload End_ICD_9_diagnosis.csv --destination "Final_Cohort/Endometriosis_Cleaning/"
+# now ICD_10 diagnosis 
+ICD_10_All_Females_Diagnosis<- fread("/mnt/project/Final_Cohort/PCOS-cleaning/ICD-10_All_Females_Diagnosis.csv")
+End_ICD_10_diagnosis <- ICD_10_All_Females_Diagnosis %>%
+  dplyr::filter(grepl("^N80", icd10_code, ignore.case = TRUE))
+colnames(End_ICD_10_diagnosis)
+###### upload endo under Endo_ICD_10_diagnosis
+
