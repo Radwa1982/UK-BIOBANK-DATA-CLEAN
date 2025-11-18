@@ -1,1 +1,120 @@
 ### End_table_Explored_surgical this is the surgically diagnosed endometriosis - table explorer in this folder 
+# Get the female only cohort 
+Endo_female_Surgical_diagnosis<- Endo_surgical_table_explorer %>%
+  filter(Sex == "Female")
+# Creating OPCS_4_long 
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(tibble)
+
+# Adjust df name if needed
+df <- Endo_female_Surgical_diagnosis
+
+opcs_date_cols <- grep(
+  "^Date of first operative procedure - OPCS4 \\| Array",
+  names(df),
+  value = TRUE
+)
+
+Endo_OPCS_4_long <- df %>%
+  select(`Participant ID`,
+         `Operative procedures - OPCS4`,
+         all_of(opcs_date_cols)) %>%
+  # row-by-row processing
+  rowwise() %>%
+  do({
+    row <- .
+    
+    # Split the OPCS text on "|"
+    codes_raw <- str_split(row$`Operative procedures - OPCS4`, "\\|")[[1]]
+    
+    # Extract just the OPCS code (e.g. "Q17.1") from
+    # "Q17.1 Endoscopic resection of lesion of uterus"
+    codes <- str_extract(codes_raw, "^[A-Z0-9.]+")
+    
+    # Get all dates from the OPCS date arrays for this row
+    dates_vec <- unlist(row[opcs_date_cols])
+    
+    # Keep non-NA dates, in order
+    dates_vec <- dates_vec[!is.na(dates_vec)]
+    
+    # Align lengths: number of codes vs number of dates
+    n <- min(length(codes), length(dates_vec))
+    
+    if (n == 0) {
+      # If no codes or no dates, return an empty tibble
+      tibble(
+        `Participant ID` = row$`Participant ID`[FALSE],
+        OPCS_code_full   = character(0),
+        OPCS_code        = character(0),
+        OPCS_date        = as.Date(character(0))
+      )
+    } else {
+      tibble(
+        `Participant ID` = row$`Participant ID`,
+        OPCS_code_full   = codes_raw[1:n],                     # full text
+        OPCS_code        = codes[1:n],                         # just code
+        OPCS_date        = as.Date(dates_vec[1:n])             # matching dates
+      )
+    }
+  }) %>%
+  ungroup()
+###########################################################################
+#repeat that for surgical episode OPSC3
+Endo_female_Surgical_diagnosis<- Endo_surgical_table_explorer %>%
+  filter(Sex == "Female")
+library(dplyr)
+library(stringr)
+library(tidyr)
+
+# Work on a tibble
+df <- Endo_female_Surgical_diagnosis %>%
+  as_tibble()
+
+# 1) Long format for OPCS3 *dates* -----------------------------
+opcs3_date_long <- df %>%
+  select(`Participant ID`,
+         matches("^Date of first operative procedure - OPCS3 \\| Array")) %>%
+  pivot_longer(
+    cols = -`Participant ID`,
+    names_to = "array_name",
+    values_to = "OPCS3_date"
+  ) %>%
+  # extract the array index (0,1,2,...) from the column name
+  mutate(
+    pos = as.integer(str_extract(array_name, "\\d+$"))
+  ) %>%
+  select(`Participant ID`, pos, OPCS3_date)
+
+# 2) Long format for OPCS3 *codes* ----------------------------
+opcs3_codes_long <- df %>%
+  select(`Participant ID`, `Operative procedures - OPCS3`) %>%
+  filter(
+    !is.na(`Operative procedures - OPCS3`),
+    `Operative procedures - OPCS3` != ""
+  ) %>%
+  # split "296 Dilation...|431 Gastric..." into a list-column
+  mutate(OPCS3_code_full = str_split(`Operative procedures - OPCS3`, "\\|")) %>%
+  select(-`Operative procedures - OPCS3`) %>%
+  unnest(OPCS3_code_full) %>%
+  mutate(
+    OPCS3_code_full = str_trim(OPCS3_code_full),
+    OPCS3_code = str_extract(OPCS3_code_full, "^[A-Z0-9.]+")
+  ) %>%
+  group_by(`Participant ID`) %>%
+  # position within each participant: 0,1,2,... to match Array 0,1,2,...
+  mutate(pos = row_number() - 1L) %>%
+  ungroup()
+
+# 3) Join codes + dates by Participant ID + position ----------
+Endo_OPCS_3_long <- opcs3_codes_long %>%
+  left_join(opcs3_date_long,
+            by = c("Participant ID", "pos")) %>%
+  select(
+    `Participant ID`,
+    OPCS3_code_full,
+    OPCS3_code,
+    OPCS3_date
+  )
+###### uploaded the long OPCS3 table to my DNAnexus called it 
