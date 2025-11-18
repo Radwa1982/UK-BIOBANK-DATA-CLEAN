@@ -27,3 +27,38 @@ Working_Study_Cohort_2 <- Working_Study_Cohort_1 %>%
 # 10. PCOS_Date_at_diagnosis_selfreported
 # 11. All_PCOS
 #####################################################################################
+# Working_study_cohort_3
+End_ICD_10_unique_participants <- End_ICD_10_diagnosis %>%
+  dplyr::distinct(`Participant ID`, .keep_all = FALSE)
+# Create a vector of the ICD-10 endometriosis participant IDs
+endo_icd10_ids <- End_ICD_10_unique_participants$`Participant ID`
+
+# Add a new column to the working cohort
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  dplyr::mutate(
+    Endo_ICD_10_diagnosis = ifelse(`Participant ID` %in% endo_icd10_ids, "Yes", NA)
+  )
+
+End_ICD_9_unique_participants <- End_ICD_9_diagnosis %>%
+  dplyr::distinct(`Participant ID`, .keep_all = FALSE)
+# Create a vector of the ICD-10 endometriosis participant IDs
+endo_icd9_ids <- End_ICD_9_unique_participants$`Participant ID`
+
+# Add a new column to the working cohort
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  dplyr::mutate(
+    Endo_ICD_9_diagnosis = ifelse(`Participant ID` %in% endo_icd9_ids, "Yes", NA)
+  )
+
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  dplyr::mutate(
+    Endo_All = ifelse(
+      Endo_ICD_10_diagnosis == "Yes" | Endo_ICD_9_diagnosis == "Yes",
+      "Yes",
+      NA
+    )
+  )
+)
+# 12. End_1cd9
+# 13. End_Icd10
+# 14. End icd9/icd10 
