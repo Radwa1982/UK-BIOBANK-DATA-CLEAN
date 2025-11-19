@@ -162,3 +162,75 @@ Working_study_cohort_4 <- Working_study_cohort_3 %>%
   ) %>%
   left_join(pcos_endo_min, by = "Participant ID") %>%
   distinct()
+#########################################################################
+# Working study cohort 5
+cols_to_add <- c(
+  "all_cancer_cases_flag",
+  "Histology_final",
+  "EOC_subtype",
+  "tumour_behavior",
+  "instance",
+  "instance_number",
+  "Histology_corrected",
+  "Behaviour_corrected"
+)
+
+# 1. Subset only the needed columns + Participant ID
+cancer_subset <- Cancer_histology_behaviour_corrected %>%
+  dplyr::select(`Participant ID`, all_of(cols_to_add))
+
+# 2. Left join onto Working_study_cohort_3
+Working_study_cohort <- Working_study_cohort %>%
+  dplyr::left_join(cancer_subset, by = "Participant ID")
+
+table(Working_study_cohort$Behaviour_corrected)
+
+subset_5_6 <- Working_study_cohort %>%
+  filter(Behaviour_corrected %in% c(5, 6))
+
+print(subset_5_6)
+unique(Working_study_cohort$Behaviour_corrected)
+
+Working_study_cohort <- Working_study_cohort %>%
+  mutate(
+    behaviour_included = case_when(
+      Behaviour_corrected %in% c(3) ~ "Include",
+      Behaviour_corrected %in% c(1, 5,6) ~ "Exclude",
+      TRUE ~ NA_character_
+    )
+  )
+unique(Working_study_cohort$behaviour_included)
+colnames(Working_study_cohort)
+
+Working_study_cohort <- Working_study_cohort %>%
+  mutate(
+    Histopath = ifelse(
+      behaviour_included == "Include",
+      case_when(
+        
+        # OCCC
+        Histology_corrected == 8310 ~ "OCCC",
+        
+        # Endometrioid
+        Histology_corrected == 8380 ~ "Endometrioid",
+        
+        # Serous
+        Histology_corrected %in% c(8450, 8471, 8570, 8340, 8050, 8260, 8462, 8441, 8461, 8460) ~ "Serous",
+        
+        # Carcinosarcoma / MMMT
+        Histology_corrected %in% c(8980, 8950) ~ "Carcinosarcoma / MMMT",
+        
+        # Mucinous
+        Histology_corrected %in% c(8472, 8470, 8480) ~ "Mucinous",
+    
+        
+        # Default case for included rows with no match
+        TRUE ~ NA_character_
+      ),
+      NA_character_  # For rows where behaviour_included is not "Include"
+    )
+  )
+
+table(Working_study_cohort$Histopath)
+
+## includes cancer behaviour / histology / histo pathology ( here the self reported were challenging to get their data) 
