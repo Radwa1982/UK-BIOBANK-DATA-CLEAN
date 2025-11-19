@@ -298,3 +298,104 @@ file_id <- stringr::str_extract(file_upload[[1]], 'file.*')
 
 system(paste0("dx run table-exporter -idataset_or_cohort_or_dashboard=", dataset$id, " -ifield_names_file_txt=", file_id, " -ientity=participant -ioutput=", file_name, "_data", " -iheader_style=FIELD-TITLE"), intern = TRUE)  
 ```
+##################################################################################################################################
+## Blood biomarkers 
+system("pip install dxpy --upgrade")
+system("pip install pandas==1.3.5")
+
+pkg <- c("data.table", "dplyr", "stringr")
+
+# Check if packages are not installed and assign the
+# names of the packages not installed to the variable new.pkg
+new.pkg <- pkg[!(pkg %in% installed.packages())]
+# If there are any packages in the list that aren't installed,
+# install them
+if (length(new.pkg)) {
+  install.packages(new.pkg, repos = "http://cran.rstudio.com")
+}
+
+
+# List of categories to extract fields from
+category_of_interest <- c(1001,717)
+
+# Individual fields you want to extract
+fields_of_interest <- c(31)
+
+
+# If you don't wish to extract a category or field, set as NULL
+
+if(!exists("category_of_interest")){
+  category_of_interest = NULL
+}
+
+if(!exists("fields_of_interest")){
+  fields_of_interest = NULL
+}
+
+# Generate a file name based on the current date and time. This corresponds to the name of the files that will be created in the project space (list of fields and data extracted)
+# The name will be in the format "table-exporter_YYYY-MM-DD_HH-MM-SS". 
+# If you want to customize the file name, you can modify the 'file_name' variable.
+file_name <- sprintf("table-exporter_%s", format(Sys.time(), "%Y-%m-%d-%ss"))
+
+
+category_schema <- data.table::fread('/mnt/project/Showcase metadata/category.tsv')
+
+field_schema <- data.table::fread('/mnt/project/Showcase metadata/field.tsv')
+
+
+for (cat in category_of_interest) {
+  if (!cat %in% category_schema$category_id) {
+    stop(paste0(cat, ' is not a valid UK Biobank category.'))
+  }
+}
+
+
+for (field in fields_of_interest) {
+  if (!field %in% field_schema$field_id) {
+    stop(paste0(field, ' is not a valid UK Biobank field'))
+  }
+}
+
+
+category_fields_extract <- field_schema |>
+  dplyr::filter(main_category %in% category_of_interest) |>
+  dplyr::pull(field_id)
+
+
+category_fields = c(category_fields_extract, fields_of_interest)
+
+get_dataset_id <- function() {
+  project <- Sys.getenv("DX_PROJECT_CONTEXT_ID")
+  record <- system("dx find data --type Dataset --delimiter ',' | awk -F ',' '{print $5}'", intern = TRUE)
+  dataset <- list()
+  dataset$id <- paste0(project, ":", record)
+  dataset$prefix <- stringr::str_sub(system("dx find data --type Dataset --delimiter ',' | awk -F ',' '{print $4}'", intern = TRUE), 2)
+  return(dataset)
+}
+
+dataset <- get_dataset_id()
+
+if (!file.exists(paste0(dataset$prefix, '.data_dictionary.csv'))) {
+  system(paste0("dx extract_dataset ", dataset$id, " -ddd"), intern = TRUE)
+}
+
+datadict <- data.table::fread(paste0(dataset$prefix,".data_dictionary.csv"))
+
+fields_for_id <- function(field) {
+  
+  regex <- paste0('^p', field, '(?![0-9])')
+  fields <- dplyr::filter(datadict, stringr::str_detect(name, regex)) |>
+    dplyr::pull(name)
+  return(fields)
+}
+
+all_columns <- c('eid', unlist(lapply(category_fields, fields_for_id)))
+
+write.table(all_columns, paste0(file_name, '_fields.txt'), row.names = F, col.names = F, quote = F)
+
+file_upload <- system(paste0('dx upload ', file_name, '_fields.txt'), intern = TRUE)
+
+file_id <- stringr::str_extract(file_upload[[1]], 'file.*')
+
+system(paste0("dx run table-exporter -idataset_or_cohort_or_dashboard=", dataset$id, " -ifield_names_file_txt=", file_id, " -ientity=participant -ioutput=", file_name, "_data", " -iheader_style=FIELD-TITLE"), intern = TRUE)  
+```
