@@ -138,4 +138,81 @@ End_ICD_10_diagnosis <- ICD_10_All_Females_Diagnosis %>%
   dplyr::filter(grepl("^N80", icd10_code, ignore.case = TRUE))
 colnames(End_ICD_10_diagnosis)
 ###### upload endo under Endo_ICD_10_diagnosis
+#################################################################################
+# Self_ reported _endo 
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+## 1) All self-reported illness text columns
+illness_cols <- grep(
+  "^Non-cancer illness code, self-reported",
+  names(Self_reported_female_All),
+  value = TRUE
+)
+
+endo_list <- lapply(illness_cols, function(ic) {
+  # Matching AGE and YEAR column names by replacing the prefix
+  age_col <- sub(
+    "Non-cancer illness code, self-reported",
+    "Interpolated Age of participant when non-cancer illness first diagnosed",
+    ic,
+    fixed = TRUE
+  )
+  
+  year_col <- sub(
+    "Non-cancer illness code, self-reported",
+    "Interpolated Year when non-cancer illness first diagnosed",
+    ic,
+    fixed = TRUE
+  )
+  
+  # Illness text in this column
+  txt <- Self_reported_female_All[[ic]]
+  
+  # Endometriosis match (case-insensitive, anywhere in the string)
+  is_endo <- grepl("endometriosis", txt, ignore.case = TRUE)
+  
+  # If no endometriosis entries in this column, skip it
+  if (!any(is_endo, na.rm = TRUE)) return(NULL)
+  
+  # Build a small data.frame only for those TRUE rows
+  data.frame(
+    Participant_ID = Self_reported_female_All[["Participant ID"]][is_endo],
+    illness_col    = ic,
+    illness_text   = txt[is_endo],
+    age_at_dx      = if (age_col %in% names(Self_reported_female_All)) 
+      Self_reported_female_All[[age_col]][is_endo] else NA,
+    year_at_dx     = if (year_col %in% names(Self_reported_female_All)) 
+      Self_reported_female_All[[year_col]][is_endo] else NA,
+    stringsAsFactors = FALSE
+  )
+})
+
+# 2) Combine all non-NULL chunks into one table
+endo_self_report <- do.call(rbind, endo_list)
+
+# 3) Derive age and approximate date of diagnosis
+endo_self_report <- endo_self_report %>%
+  mutate(
+    Endo_Age_at_diagnosis_selfreported =
+      floor(as.numeric(age_at_dx))
+  ) %>%
+  mutate(
+    # whole year
+    year_whole   = floor(as.numeric(year_at_dx)),
+    # fractional part
+    year_fraction = as.numeric(year_at_dx) - year_whole,
+    # convert fraction → month
+    month = round(year_fraction * 12),
+    # fix month 0 and 12
+    month = ifelse(month == 0, 1, month),
+    month = ifelse(month == 12, 12, month),
+    # approximate date (15th of the month)
+    Endo_Date_at_diagnosis_selfreported =
+      as.Date(paste(year_whole, month, 15, sep = "-"))
+  ) %>%
+  mutate(Endometriosis_self_reported = TRUE)
+
+###### Uplode self_reported end to the Dnxa 
 
