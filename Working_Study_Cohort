@@ -59,6 +59,40 @@ Working_study_cohort_3 <- Working_study_cohort_3 %>%
     )
   )
 )
+# 1. Prepare the subset from endo_self_report
+endo_subset <- endo_self_report %>%
+  select(
+    Participant_ID,
+    Endo_Age_at_diagnosis_selfreported,
+    Endo_Date_at_diagnosis_selfreported,
+    Endometriosis_self_reported
+  ) %>%
+  rename(`Participant ID` = Participant_ID)
+
+# 2. Merge into Working_study_cohort_3 by Participant ID
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  left_join(endo_subset, by = "Participant ID")
+
+# 3. Create final flag column: Endo_selfreported
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  mutate(
+    Endo_selfreported = ifelse(Endometriosis_self_reported == TRUE, "Yes", NA)
+  )
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  mutate(
+    End_all = ifelse(
+      Endometriosis_self_reported == TRUE |
+        Endo_ICD_9_diagnosis == "Yes" |
+        Endo_ICD_10_diagnosis == "Yes",
+      "Yes",
+      NA
+    )
+  )
 # 12. End_1cd9
 # 13. End_Icd10
 # 14. End icd9/icd10 
+#15. Endometriosis self reported 
+#16. Age at diagnosis of endometriosis 
+#17. year at diagnosis of endometriosis 
+#19. Endo All
+###################################################################################
