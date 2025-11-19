@@ -96,3 +96,69 @@ Working_study_cohort_3 <- Working_study_cohort_3 %>%
 #17. year at diagnosis of endometriosis 
 #19. Endo All
 ###################################################################################
+# Working_study_cohort_4 
+#These were cleaning steps as the the dates of self reported conditions are usually mixed ending in doubling the participant ID so what i did here was keeping the earliest date of diagnosis 
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  dplyr::distinct()
+sum(duplicated(Working_study_cohort_3$`Participant ID`))
+dup_rows <- Working_study_cohort_3[
+  duplicated(Working_study_cohort_3$`Participant ID`) |
+    duplicated(Working_study_cohort_3$`Participant ID`, fromLast = TRUE),
+]
+
+colnames(Working_study_cohort_3)
+
+library(dplyr)
+
+Working_study_cohort_3 <- Working_study_cohort_3 %>%
+  mutate(
+    PCOS_Date_at_diagnosis_selfreported =
+      as.Date(PCOS_Date_at_diagnosis_selfreported),
+    Endo_Date_at_diagnosis_selfreported =
+      as.Date(Endo_Date_at_diagnosis_selfreported)
+  )
+
+pcos_endo_min <- Working_study_cohort_3 %>%
+  group_by(`Participant ID`) %>%
+  summarise(
+    # ---- PCOS earliest date & age ----
+    PCOS_Date_at_diagnosis_selfreported = 
+      if (all(is.na(PCOS_Date_at_diagnosis_selfreported))) {
+        as.Date(NA)
+      } else {
+        min(PCOS_Date_at_diagnosis_selfreported, na.rm = TRUE)
+      },
+    
+    PCOS_Age_at_diagnosis_selfreported =
+      if (all(is.na(PCOS_Age_at_diagnosis_selfreported))) {
+        NA_real_
+      } else {
+        min(PCOS_Age_at_diagnosis_selfreported, na.rm = TRUE)
+      },
+    
+    # ---- Endometriosis earliest date & age ----
+    Endo_Date_at_diagnosis_selfreported =
+      if (all(is.na(Endo_Date_at_diagnosis_selfreported))) {
+        as.Date(NA)
+      } else {
+        min(Endo_Date_at_diagnosis_selfreported, na.rm = TRUE)
+      },
+    
+    Endo_Age_at_diagnosis_selfreported =
+      if (all(is.na(Endo_Age_at_diagnosis_selfreported))) {
+        NA_real_
+      } else {
+        min(Endo_Age_at_diagnosis_selfreported, na.rm = TRUE)
+      },
+    
+    .groups = "drop"
+  )
+Working_study_cohort_4 <- Working_study_cohort_3 %>%
+  select(
+    -PCOS_Date_at_diagnosis_selfreported,
+    -PCOS_Age_at_diagnosis_selfreported,
+    -Endo_Date_at_diagnosis_selfreported,
+    -Endo_Age_at_diagnosis_selfreported
+  ) %>%
+  left_join(pcos_endo_min, by = "Participant ID") %>%
+  distinct()
