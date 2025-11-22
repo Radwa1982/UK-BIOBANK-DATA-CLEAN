@@ -234,3 +234,81 @@ Working_study_cohort <- Working_study_cohort %>%
 table(Working_study_cohort$Histopath)
 
 ## includes cancer behaviour / histology / histo pathology ( here the self reported were challenging to get their data) 
+######################################################################################################
+# Working _study Cohort 6 
+# added the date of cancer diagnosis 
+colnames(biochemestry)
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# Identify the date columns
+date_cols <- grep("^Date of cancer diagnosis \\| Instance", 
+                  names(biochemestry), value = TRUE)
+
+# Pivot dates to long form
+dates_long <- biochemestry %>%
+  select(`Participant ID`, all_of(date_cols)) %>%
+  pivot_longer(
+    cols = all_of(date_cols),
+    names_to = "Instance_label",
+    values_to = "Cancer_date_raw"
+  ) %>%
+  mutate(
+    instance_number = as.numeric(str_extract(Instance_label, "\\d+"))
+  )
+biochemestry <- biochemestry %>%
+  left_join(
+    dates_long %>% 
+      select(`Participant ID`, instance_number, Cancer_date_raw),
+    by = c("Participant ID", "instance_number")
+  ) %>%
+  rename(Cancer_diagnosis_date = Cancer_date_raw)
+
+Working_Study_Cohort <-Working_Study_Cohort %>%
+  left_join(
+    biochemestry %>% 
+      select(`Participant ID`, Cancer_diagnosis_date),
+    by = "Participant ID"
+  )
+# then find the mean between recrutment and developing cancer 
+library(dplyr)
+library(lubridate)
+
+Working_Study_Cohort <- Working_Study_Cohort %>%
+  mutate(
+    recruitment_date = as.Date(`Date of attending assessment centre | Instance 0`),
+    cancer_date = as.Date(Cancer_diagnosis_date),
+    months_recruit_to_cancer = interval(recruitment_date, cancer_date) / months(1)
+  )
+mean_months_cancer_only <- Working_Study_Cohort %>%
+  filter(!is.na(months_recruit_to_cancer)) %>%
+  summarise(mean_months = mean(months_recruit_to_cancer, na.rm = TRUE))
+
+mean_months_cancer_only
+
+# adding biochemestry columns 
+library(dplyr)
+library(stringr)
+
+# Select all columns that end with "| Instance 0"
+biochem_instance0 <- biochemestry %>%
+  select(`Participant ID`, matches("\\| Instance 0$"))
+names(biochem_instance0) <- names(biochem_instance0) %>%
+  str_replace(" \\| Instance 0$", "")
+Working_Study_Cohort <- Working_Study_Cohort %>%
+  left_join(biochem_instance0, by = "Participant ID")
+#################################################################################
+# working_study _cohort_7
+biomarkers_instance0 <- grep("\\| Instance 0$", names(Biomarkers), value = TRUE)
+biomarkers0_df <- Biomarkers[, c("Participant ID", biomarkers_instance0), with = FALSE]
+
+working_study_cohort <- merge(
+  working_study_cohort,
+  biomarkers0_df,
+  by = "Participant ID",
+  all = FALSE
+)
+###############################################################################
+# working_study_cohort_8
+#contains female specific factors 
