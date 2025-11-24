@@ -1,0 +1,145 @@
+colnames(OPCS_3)
+Tubal_ligation <- OPCS_4 %>%   # replace with your dataset name
+  filter(grepl("^(Q27|Q28|Q35|Q36)", OPCS_code))
+Tubal_ligation_OPCS3 <- OPCS_3 %>%
+  filter(
+    OPCS3_code == "687" |
+      OPCS3_code == "689.6"
+  )
+unique(Operation_self$Tubal_ligation)
+Operation_self<- Operation_self %>%
+  filter(Sex == "Female")
+colnames(Operation_self)
+
+op_cols <- grep("^Operation code \\| Instance [0-9]+ \\| Array [0-9]+$",
+                names(Operation_self), value = TRUE)
+year_cols <- grep("^Interpolated Year when operation took place \\| Instance [0-9]+ \\| Array [0-9]+$",
+                  names(Operation_self), value = TRUE)
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+op_long <- Operation_self %>%
+  select(`Participant ID`, all_of(op_cols), all_of(year_cols)) %>%
+  pivot_longer(
+    cols = -`Participant ID`,
+    names_to = c(".value", "instance", "array"),
+    names_pattern = "(Operation code|Interpolated Year when operation took place) \\| Instance ([0-9]+) \\| Array ([0-9]+)"
+  ) %>%
+  rename(
+    operation = `Operation code`,
+    year_interpolated = `Interpolated Year when operation took place`
+  )
+Tubal_ligation_self <- op_long %>%
+  filter(str_detect(operation, regex("sterilisation", ignore_case = TRUE))) %>%
+  mutate(
+    year_interpolated = as.numeric(year_interpolated)
+  )
+Tubal_ligation_self <- Tubal_ligation_self %>%
+  mutate(
+    operation_date = as.Date(year_interpolated * 365.25,
+                             origin = "0000-01-01")
+  )
+table(table(Tubal_ligation_self$`Participant ID`) > 1)
+dup_ids <- Tubal_ligation_self %>%
+  count(`Participant ID`) %>%
+  filter(n > 1)
+
+dup_ids
+Tubal_ligation_self %>%
+  semi_join(dup_ids, by = "Participant ID")
+colnames(Tubal_ligation_self)
+# Ensure OPCS_date is in Date format
+Tubal_ligation <- Tubal_ligation %>%
+  mutate(OPCS_date = as.Date(OPCS_date))
+
+# Keep earliest record per participant
+Tubal_ligation_clean <- Tubal_ligation %>%
+  arrange(`Participant ID`, OPCS_date) %>%   # sort by earliest date
+  group_by(`Participant ID`) %>%
+  slice(1) %>%                                # keep earliest row
+  ungroup()
+Tubal_ligation_self_earliest <- Tubal_ligation_self %>%
+  arrange(`Participant ID`, operation_date) %>%   # sort by date
+  group_by(`Participant ID`) %>%
+  slice(1) %>%                                    # keep earliest only
+  ungroup()
+
+ids_opcs3 <- Tubal_ligation_OPCS3$`Participant ID`
+ids_self  <- Tubal_ligation_clean$`Participant ID`
+
+duplicate_ids <- intersect(ids_opcs3, ids_self)
+duplicate_ids
+
+
+colnames(Tubal_ligation_clean)
+
+
+library(dplyr)
+library(lubridate)
+
+### 1. Standardise column names in both datasets
+
+OPCS3_clean <- Tubal_ligation_OPCS3 %>%
+  rename(
+    Full_code = OPCS3_code_full,
+    OPC_code  = OPCS3_code,
+    Sterilisation_date = OPCS3_date
+  ) %>%
+  mutate(OPC_code = as.character(OPC_code))
+
+
+Self_clean <- Tubal_ligation_clean %>%
+  rename(
+    Full_code = OPCS_code_full,
+    OPC_code  = OPCS_code,
+    Sterilisation_date = OPCS_date
+  ) %>%
+  mutate(OPC_code = as.character(OPC_code))
+
+
+### 2. Combine both sources
+Tubal_combined <- bind_rows(OPCS3_clean, Self_clean)
+
+### 3. Convert date column to proper Date format
+Tubal_combined <- Tubal_combined %>%
+  mutate(
+    Sterilisation_date = as.Date(Sterilisation_date)
+  )
+
+### 4. For any participant with >1 record → keep the earliest date
+Tubal_ligation_merged <- Tubal_combined %>%
+  group_by(`Participant ID`) %>%
+  arrange(Sterilisation_date) %>%
+  slice(1) %>%                     # keeps earliest operation
+  ungroup()
+
+### 5. Final dataframe
+Tubal_ligation_merged
+
+colnames(Tubal_ligation_self_earliest)
+
+common_ids <- intersect(
+  Tubal_ligation_merged$`Participant ID`,
+  Tubal_ligation_self_earliest$`Participant ID`
+)
+
+length(common_ids)
+
+# Make both tables have the same variable names
+OPCS_df <- Tubal_ligation_merged %>%
+  select(`Participant ID`, Sterilisation_date)
+
+Self_df <- Tubal_ligation_self_earliest %>%
+  select(`Participant ID`, operation_date) %>%
+  rename(Sterilisation_date = operation_date)
+
+combined_all <- bind_rows(OPCS_df, Self_df)
+final_tubal <- combined_all %>%
+  group_by(`Participant ID`) %>%
+  arrange(Sterilisation_date) %>%   # earliest date at top
+  summarise(Sterilisation_date = first(Sterilisation_date)) %>%
+  ungroup()
+sum(duplicated(final_tubal$`Participant ID`))
+
+  )
