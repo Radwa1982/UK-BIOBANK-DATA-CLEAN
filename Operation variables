@@ -1,0 +1,24 @@
+# creating self reported operation variable 
+colnames(Self_reported_operations)
+cols_to_add <- c(
+  "Participant ID",
+  "hysterectomy_year",
+  "hysterectomy_age",
+  "sterilisation_year",
+  "sterilisation_age",
+  "hysterectomy with oophorectomy_year",
+  "hysterectomy with oophorectomy_age",
+  "unilateral oophorectomy_year",
+  "unilateral oophorectomy_age",
+  "bilateral oophorectomy_year",
+  "bilateral oophorectomy_age",
+  "salpingectomy_year",
+  "salpingectomy_age"
+)
+Self_reported_ops_subset <- Self_reported_operations[, ..cols_to_add]
+working_study_cohort <- merge(
+  working_study_cohort,
+  Self_reported_ops_subset,
+  by = "Participant ID",
+  all.x = TRUE
+)
