@@ -1,0 +1,173 @@
+colnames(Self_reported)
+unique(Self_reported$year_interpolated)
+all_hysterectomy <- Self_reported[
+  grepl("hysterectomy", Self_reported$operation, ignore.case = TRUE),
+]
+
+all_hysterectomy_1 <- all_hysterectomy[
+  !grepl("oophorectomy", all_hysterectomy$operation, ignore.case = TRUE),
+]
+
+library(dplyr)
+
+all_hysterectomy_1 <- all_hysterectomy_1 %>%
+  mutate(
+    year_interpolated = ifelse(year_interpolated < 0, NA, year_interpolated)
+  )
+sum(is.na(all_hysterectomy_3$date))
+
+library(lubridate)
+
+all_hysterectomy_2 <- all_hysterectomy_1 %>%
+  mutate(
+    year = floor(year_interpolated),
+    fraction = year_interpolated - year,
+    month = floor(fraction * 12) + 1,
+    day = 15,   # UKB uses mid-month approximation
+    date = ymd(paste(year, month, day, sep="-"))
+  )
+colnames(all_hysterectomy_2)
+
+unknown<-all_hysterectomy_1 %>%
+  filter(year_interpolated < 0)
+
+
+all_hysterectomy_3 <- select(
+  all_hysterectomy_2,
+  `Participant ID`,
+  operation,
+  date
+)
+
+colnames(OPCS_3)
+unique(OPCS_3$OPCS3_code)
+
+library(dplyr)
+
+OPCS_3_all_hysterectomy <- OPCS_3 %>%
+  filter(OPCS3_code %in% c("691", "692", "692.1", "693.1", "693.3", "694", "696", "696.1"))
+
+OPCS_4_all_hysterectomy <- OPCS_4 %>%
+  filter(OPCS_code %in% c("Q07.2", "Q07.4", "Q07.5","Q07.8","Q07.9","Q08.2", "Q08.8", "Q08.9"))
+
+
+duplicates_OPCS3 <- OPCS_3_all_hysterectomy %>%
+  filter(duplicated(`Participant ID`))
+
+library(dplyr)
+
+OPCS_3_all_hysterectomy_earliest <- OPCS_3_all_hysterectomy %>%
+  group_by(`Participant ID`) %>%
+  arrange("OPCS3_date") %>%     # sort earliest → latest
+  slice(1) %>%          # keep earliest
+  ungroup()
+
+duplicates_OPCS4 <- OPCS_4_all_hysterectomy %>%
+  filter(duplicated(`Participant ID`))
+
+OPCS_4_all_hysterectomy_earliest <- OPCS_4_all_hysterectomy %>%
+  group_by(`Participant ID`) %>%
+  arrange("OPCS_date") %>%     # sort earliest → latest
+  slice(1) %>%          # keep earliest
+  ungroup()
+
+duplicates_all_hysterectomy_3<- all_hysterectomy_3 %>%
+  filter(duplicated(`Participant ID`))
+
+colnames(OPCS_4_all_hysterectomy_earliest)
+
+library(dplyr)
+
+library(dplyr)
+
+OPCS_3_clean <- OPCS_3_all_hysterectomy_earliest %>%
+  mutate(
+    OPCS3_code_full = as.character(OPCS3_code_full),
+    OPCS3_code      = as.character(OPCS3_code),
+    OPCS3_date      = as.Date(OPCS3_date)
+  ) %>%
+  rename(
+    OPCS3_4_code_full = OPCS3_code_full,
+    OPCS3_4_code      = OPCS3_code,
+    OPCS_date         = OPCS3_date
+  )
+
+OPCS_4_clean <- OPCS_4_all_hysterectomy_earliest %>%
+  mutate(
+    OPCS_code_full = as.character(OPCS_code_full),
+    OPCS_code      = as.character(OPCS_code),
+    OPCS_date      = as.Date(OPCS_date)
+  ) %>%
+  rename(
+    OPCS3_4_code_full = OPCS_code_full,
+    OPCS3_4_code      = OPCS_code,
+    OPCS_date         = OPCS_date
+  )
+
+OPCS_3_4_combined <- bind_rows(OPCS_3_clean, OPCS_4_clean)
+OPCS_3_4_earliest <- OPCS_3_4_combined %>%
+  group_by(`Participant ID`) %>%
+  arrange(OPCS_date) %>%
+  slice(1) %>%
+  ungroup()
+
+colnames(OPCS_3_4_earliest)
+
+
+library(dplyr)
+
+common <- inner_join(
+  all_hysterectomy_3,
+  OPCS_3_4_earliest,
+  by = "Participant ID"
+)
+
+library(dplyr)
+
+common_clean <- common %>%
+  select(-date, -operation)
+
+library(dplyr)
+
+all_hysterectomy_4 <- all_hysterectomy_3 %>%
+  anti_join(common_clean, by = "Participant ID")
+
+
+
+library(dplyr)
+
+all_hysterectomy_4_clean <- all_hysterectomy_4 %>%
+  arrange(`Participant ID`, date) %>%  
+  group_by(`Participant ID`) %>%       
+  slice(1) %>%                          # earliest self-reported date
+  ungroup()
+SR <- all_hysterectomy_4_clean %>%
+  rename(
+    method_of_reporting = operation,
+    final_date = date
+  )
+
+OPCS <- OPCS_3_4_earliest %>%
+  rename(
+    method_of_reporting = OPCS3_4_code_full,
+    final_date = OPCS_date
+  )
+combined_raw <- bind_rows(SR, OPCS)
+sum(is.na(all_hysterectomy_4_clean$date))
+
+
+final_hysterectomy <- combined_raw %>%
+  mutate(
+    priority = ifelse(grepl("^Q|^7|^6", method_of_reporting), 1, 2)
+    # OPCS codes start with Q (OPCS-4) or 6xx/7xx (OPCS-3)
+  ) %>%
+  arrange(`Participant ID`, priority, final_date) %>% 
+  group_by(`Participant ID`) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(-priority)
+
+duplicates_final_hysterectomy<- final_hysterectomy %>%
+  filter(duplicated(`Participant ID`))
+unique(final_hysterectomy$OPCS3_4_code)
+sum(is.na(final_hysterectomy$OPCS3_4_code))
