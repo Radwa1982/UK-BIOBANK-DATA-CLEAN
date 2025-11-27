@@ -312,3 +312,6 @@ working_study_cohort <- merge(
 ###############################################################################
 # working_study_cohort_8
 #contains female specific factors 
+###############################################################################
+# working_study_cohort_10 
+# contains tubal ligation and hysterectomy 
